@@ -51,7 +51,7 @@ fun <ParentInput, ParentOutput, ChildOutput> Fragment.filterMapOutput(
 
 ```Kotlin
 fun <ParentInput, ParentOutput, ChildInput> Fragment.filterMapInput(
-    func: Mapper<ParentInput, FilterMap<ChildInput>>
+    func: Mapper<ParentInput?, FilterMap<ChildInput?>>
 ): RenderingObject<ChildInput, ParentOutput>
 ```
 
