@@ -72,7 +72,7 @@ Check out the [sample](https://github.com/simprok-dev/simprokmachine-android/tre
 Add this in your project's gradle file:
 
 ```groovy
-implementation 'com.github.simprok-dev:simprokmachine-android:1.1.3'
+implementation 'com.github.simprok-dev:simprokmachine-android:1.1.4'
 ```
 
 and this in your settings.gradle file:
