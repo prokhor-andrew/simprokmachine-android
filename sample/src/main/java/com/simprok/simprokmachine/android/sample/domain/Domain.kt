@@ -3,11 +3,9 @@ package com.simprok.simprokmachine.android.sample.domain
 import android.content.SharedPreferences
 import com.simprok.simprokmachine.android.sample.AppEvent
 import com.simprok.simprokmachine.android.sample.domain.calculator.Calculator
+import com.simprok.simprokmachine.android.sample.domain.calculator.CalculatorInput
 import com.simprok.simprokmachine.android.sample.domain.sreader.StorageReader
 import com.simprok.simprokmachine.api.*
-import com.simprok.simprokmachine.api.connectable.BasicConnection
-import com.simprok.simprokmachine.api.connectable.ConnectableMachine
-import com.simprok.simprokmachine.api.connectable.ConnectionType
 import com.simprok.simprokmachine.machines.Machine
 import com.simprok.simprokmachine.machines.ParentMachine
 
@@ -15,16 +13,6 @@ class Domain(private val prefs: SharedPreferences) : ParentMachine<AppEvent, App
 
     override val child: Machine<AppEvent, AppEvent>
         get() {
-            fun getCalculator(initial: Int): Machine<DomainInput, DomainOutput> {
-                return Calculator(initial).outward {
-                    Ward.set<DomainOutput>(DomainOutput.FromCalculator(it))
-                }.inward {
-                    when (it) {
-                        is DomainInput.FromParent -> Ward.set(Unit)
-                        is DomainInput.FromReader -> Ward.set()
-                    }
-                }
-            }
 
             val reader: Machine<DomainInput, DomainOutput> = StorageReader(prefs).outward {
                 Ward.set<DomainOutput>(DomainOutput.FromReader(it))
@@ -32,20 +20,24 @@ class Domain(private val prefs: SharedPreferences) : ParentMachine<AppEvent, App
                 Ward.set()
             }
 
-            val connectable: Machine<DomainInput, DomainOutput> =
-                ConnectableMachine(BasicConnection.create(reader)) { state, input ->
-                    when (input) {
-                        is DomainInput.FromParent -> ConnectionType.Inward()
-                        is DomainInput.FromReader -> ConnectionType.Reduce(
-                            BasicConnection.create(getCalculator(input.value))
-                        )
-                    }
-                }.redirect {
-                    when (it) {
-                        is DomainOutput.FromReader -> Direction.Back(DomainInput.FromReader(it.value))
-                        is DomainOutput.FromCalculator -> Direction.Prop()
-                    }
+            val calculator: Machine<DomainInput, DomainOutput> = Calculator().outward {
+                Ward.set<DomainOutput>(DomainOutput.FromCalculator(it))
+            }.inward {
+                when (it) {
+                    is DomainInput.FromParent -> Ward.set(CalculatorInput.Increment)
+                    is DomainInput.FromReader -> Ward.set(CalculatorInput.Initialize(it.value))
                 }
+            }
+
+            val connectable: Machine<DomainInput, DomainOutput> = Machine.merge(
+                reader,
+                calculator
+            ).redirect {
+                when (it) {
+                    is DomainOutput.FromReader -> Direction.Back(DomainInput.FromReader(it.value))
+                    is DomainOutput.FromCalculator -> Direction.Prop()
+                }
+            }
 
             return connectable.outward {
                 when (it) {

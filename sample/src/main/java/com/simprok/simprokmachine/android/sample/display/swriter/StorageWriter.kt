@@ -12,7 +12,7 @@ class StorageWriter(private val prefs: SharedPreferences) : ChildMachine<Int, No
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.Main
 
-    override suspend fun process(input: Int?, callback: Handler<Nothing>) {
+    override fun process(input: Int?, callback: Handler<Nothing>) {
         if (input != null) {
             prefs.edit()
                 .putInt(storageKey, input)

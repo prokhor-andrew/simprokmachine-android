@@ -12,7 +12,7 @@ class StorageReader(private val prefs: SharedPreferences) : ChildMachine<Unit, I
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.Main
 
-    override suspend fun process(input: Unit?, callback: Handler<Int>) {
+    override fun process(input: Unit?, callback: Handler<Int>) {
         callback(prefs.getInt(storageKey, 0))
     }
 }

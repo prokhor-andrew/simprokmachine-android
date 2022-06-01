@@ -5,15 +5,30 @@ import com.simprok.simprokmachine.machines.ChildMachine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-class Calculator(private var state: Int) : ChildMachine<Unit, Int> {
+class Calculator : ChildMachine<CalculatorInput, Int> {
+
+    private var state: Int? = null
 
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.IO
 
-    override suspend fun process(input: Unit?, callback: Handler<Int>) {
+    override fun process(input: CalculatorInput?, callback: Handler<Int>) {
         if (input != null) {
-            state += 1
+            when (input) {
+                is CalculatorInput.Increment -> {
+                    val unwrapped = state
+                    if (unwrapped != null) {
+                        state = unwrapped + 1
+                    }
+                }
+                is CalculatorInput.Initialize -> {
+                    state = input.value
+                }
+            }
+            val unwrapped = state
+            if (unwrapped != null) {
+                callback(unwrapped)
+            }
         }
-        callback(state)
     }
 }

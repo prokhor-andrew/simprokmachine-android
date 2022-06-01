@@ -10,7 +10,7 @@ class Logger : ChildMachine<String, Nothing> {
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.IO
 
-    override suspend fun process(input: String?, callback: Handler<Nothing>) {
+    override fun process(input: String?, callback: Handler<Nothing>) {
         println(input ?: "loading")
     }
 }
