@@ -46,7 +46,7 @@ When we reopen the app we want to see the same number. So the state must be save
     - Input: Int
     - Output: Nothing
 - ```Calculator``` - incrementing the number.
-    - Input: Unit
+    - Input: CalculatorInput
     - Output: Int
 
 
@@ -77,13 +77,22 @@ They are used as intermediate layers.
 
 ## Step 3 - Code data types
 
-We only need ```AppEvent``` as the rest is supported by Kotlin.
+We only need ```AppEvent``` and ```CalculatorInput``` as the rest is supported by Kotlin.
 
 ```Kotlin
 sealed interface AppEvent {
     object WillChangeState : AppEvent
 
     data class DidChangeState(val value: Int) : AppEvent
+}
+```
+
+```Kotlin
+sealed interface CalculatorInput {
+
+    data class Initialize(val value: Int) : CalculatorInput
+
+    object Increment : CalculatorInput
 }
 ```
 
@@ -96,7 +105,7 @@ class Logger : ChildMachine<String, Nothing> {
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.IO
 
-    override suspend fun process(input: String?, callback: Handler<Nothing>) {
+    override fun process(input: String?, callback: Handler<Nothing>) {
         println(input ?: "loading")
     }
 }
@@ -146,7 +155,7 @@ class StorageWriter(private val prefs: SharedPreferences) : ChildMachine<Int, No
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.Main
 
-    override suspend fun process(input: Int?, callback: Handler<Nothing>) {
+    override fun process(input: Int?, callback: Handler<Nothing>) {
         if (input != null) {
             prefs.edit()
                 .putInt(storageKey, input)
@@ -196,7 +205,7 @@ class StorageReader(private val prefs: SharedPreferences) : ChildMachine<Unit, I
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.Main
 
-    override suspend fun process(input: Unit?, callback: Handler<Int>) {
+    override fun process(input: Unit?, callback: Handler<Int>) {
         callback(prefs.getInt(storageKey, 0))
     }
 }
@@ -204,16 +213,31 @@ class StorageReader(private val prefs: SharedPreferences) : ChildMachine<Unit, I
 
 
 ```Kotlin
-class Calculator(private var state: Int) : ChildMachine<Unit, Int> {
+class Calculator : ChildMachine<CalculatorInput, Int> {
+
+    private var state: Int? = null
 
     override val dispatcher: CoroutineDispatcher
         get() = Dispatchers.IO
 
-    override suspend fun process(input: Unit?, callback: Handler<Int>) {
+    override fun process(input: CalculatorInput?, callback: Handler<Int>) {
         if (input != null) {
-            state += 1
+            when (input) {
+                is CalculatorInput.Increment -> {
+                    val unwrapped = state
+                    if (unwrapped != null) {
+                        state = unwrapped + 1
+                    }
+                }
+                is CalculatorInput.Initialize -> {
+                    state = input.value
+                }
+            }
+            val unwrapped = state
+            if (unwrapped != null) {
+                callback(unwrapped)
+            }
         }
-        callback(state)
     }
 }
 ```
@@ -228,16 +252,6 @@ class Domain(private val prefs: SharedPreferences) : ParentMachine<AppEvent, App
 
     override val child: Machine<AppEvent, AppEvent>
         get() {
-            fun getCalculator(initial: Int): Machine<DomainInput, DomainOutput> {
-                return Calculator(initial).outward {
-                    Ward.set<DomainOutput>(DomainOutput.FromCalculator(it))
-                }.inward {
-                    when (it) {
-                        is DomainInput.FromParent -> Ward.set(Unit)
-                        is DomainInput.FromReader -> Ward.set()
-                    }
-                }
-            }
 
             val reader: Machine<DomainInput, DomainOutput> = StorageReader(prefs).outward {
                 Ward.set<DomainOutput>(DomainOutput.FromReader(it))
@@ -245,20 +259,24 @@ class Domain(private val prefs: SharedPreferences) : ParentMachine<AppEvent, App
                 Ward.set()
             }
 
-            val connectable: Machine<DomainInput, DomainOutput> =
-                ConnectableMachine(BasicConnection.create(reader)) { state, input ->
-                    when (input) {
-                        is DomainInput.FromParent -> ConnectionType.Inward()
-                        is DomainInput.FromReader -> ConnectionType.Reduce(
-                            BasicConnection.create(getCalculator(input.value))
-                        )
-                    }
-                }.redirect {
-                    when (it) {
-                        is DomainOutput.FromReader -> Direction.Back(DomainInput.FromReader(it.value))
-                        is DomainOutput.FromCalculator -> Direction.Prop()
-                    }
+            val calculator: Machine<DomainInput, DomainOutput> = Calculator().outward {
+                Ward.set<DomainOutput>(DomainOutput.FromCalculator(it))
+            }.inward {
+                when (it) {
+                    is DomainInput.FromParent -> Ward.set(CalculatorInput.Increment)
+                    is DomainInput.FromReader -> Ward.set(CalculatorInput.Initialize(it.value))
                 }
+            }
+
+            val connectable: Machine<DomainInput, DomainOutput> = Machine.merge(
+                reader,
+                calculator
+            ).redirect {
+                when (it) {
+                    is DomainOutput.FromReader -> Direction.Back(DomainInput.FromReader(it.value))
+                    is DomainOutput.FromCalculator -> Direction.Prop()
+                }
+            }
 
             return connectable.outward {
                 when (it) {
@@ -296,7 +314,6 @@ sealed interface DomainOutput {
 ```
 
 [redirect()](https://github.com/simprok-dev/simprokmachine-kotlin/wiki/Machine#redirect-operator) - depending on the output either passes it further to the root or sends an array of input data back to the child.
-[ConnectableMachine](https://github.com/simprok-dev/simprokmachine-kotlin/wiki/ConnectableMachine) - dynamically creates and connects a set of machines.
 
 ## Step 10 - Code MainActivity
 
@@ -394,7 +411,6 @@ Run the app and see how things are working.
 - ```outward()``` is an operator to map the child's output type into the parent's output type or ignore it.
 - ```redirect()``` is an operator to either pass the output further to the root or map it into an array of inputs and send back to the child.
 - ```merge()``` is an operator to merge two or more machines of the same input and output types.
-- ```ConnectableMachine``` is a machine that is used to dynamically create and connect other machines.
 - ```WidgetMachine``` is a special wrapper around normal machine that is used to connect ```Fragment```s or ```Activity``` to the flow, handling lifecycle issues via ```ViewModel``` under the hood.
 - ```AppCompatActivity.start()``` - starts the flow of your application.
 - ```Fragment.render()``` - is a method that connects input flow of the app to your fragment and emits output if needed. 
