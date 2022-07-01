@@ -36,7 +36,7 @@ class BasicActivityMachineObject<Input, Output>(
                     if (result != null) {
                         activity = data.activity
                         machine = CustomRootMachine(result, buffer.toList(), callback)
-                        job = machine?.start(scope) {}
+                        job = machine?.start(scope)
                         buffer.clear()
                     }
                 }

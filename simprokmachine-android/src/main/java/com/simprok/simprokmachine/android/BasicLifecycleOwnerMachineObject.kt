@@ -36,7 +36,7 @@ class BasicLifecycleOwnerMachineObject<Input, Output>(
                     if (result != null) {
                         owner = data.owner
                         machine = CustomRootMachine(result, buffer.toList(), callback)
-                        job = machine?.start(scope) {}
+                        job = machine?.start(scope)
                         buffer.clear()
                     }
                 }
